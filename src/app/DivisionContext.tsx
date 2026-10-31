@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect } from 'react'
+import React, { createContext, useContext, useState } from 'react'
 import type { BusinessDivision } from '../data/types'
 
 export type DivisionFilter = 'ALL' | BusinessDivision
