@@ -4,6 +4,7 @@ import { useTheme } from '../../app/ThemeContext'
 
 /**
  * Theme-aware line chart wrapper for monthly analytics.
+ * Palette: Muted professional slate & teal/emerald tones.
  */
 
 type Series = {
@@ -23,16 +24,17 @@ export function MonthlyLineChart({ months, series }: Props) {
 
   if (!months.length || !series.length || !hasData) {
     return (
-      <div className="flex h-52 items-center justify-center rounded-xl bg-gradient-to-br from-white to-indigo-50 text-sm text-gray-600 ring-1 ring-gray-200/70 dark:from-gray-900 dark:to-gray-950 dark:text-gray-300 dark:ring-white/10 lg:h-64">
-        Belum ada data untuk ditampilkan.
+      <div className="flex h-52 items-center justify-center rounded-xl bg-slate-50/50 text-xs text-slate-500 border border-slate-200/70 dark:bg-slate-900/30 dark:text-slate-400 dark:border-slate-800 lg:h-64">
+        Belum ada transaksi pada periode ini.
       </div>
     )
   }
 
+  // Refined enterprise palette (Slate/Zinc & Soft Emerald, no flashy neon)
   const palette = [
-    { border: 'rgb(79, 70, 229)', bg: 'rgba(79, 70, 229, 0.16)' },
-    { border: 'rgb(13, 148, 136)', bg: 'rgba(13, 148, 136, 0.16)' },
-    { border: 'rgb(234, 88, 12)', bg: 'rgba(234, 88, 12, 0.16)' },
+    { border: isDark ? '#38bdf8' : '#0284c7', bg: isDark ? 'rgba(56, 189, 248, 0.08)' : 'rgba(2, 132, 199, 0.06)' },
+    { border: isDark ? '#34d399' : '#059669', bg: isDark ? 'rgba(52, 211, 153, 0.08)' : 'rgba(5, 150, 105, 0.06)' },
+    { border: isDark ? '#fbbf24' : '#d97706', bg: isDark ? 'rgba(251, 191, 36, 0.08)' : 'rgba(217, 119, 6, 0.06)' },
   ]
 
   const data = {
@@ -45,10 +47,10 @@ export function MonthlyLineChart({ months, series }: Props) {
         borderColor: colors.border,
         backgroundColor: colors.bg,
         borderWidth: 2,
-        pointRadius: 2,
+        pointRadius: 2.5,
         pointHoverRadius: 4,
         fill: true,
-        tension: 0.3,
+        tension: 0.25,
       }
     }),
   }
@@ -60,7 +62,12 @@ export function MonthlyLineChart({ months, series }: Props) {
       legend: {
         display: true,
         position: 'bottom' as const,
-        labels: { usePointStyle: true, boxWidth: 10, color: isDark ? 'rgba(229, 231, 235, 0.92)' : 'rgba(55, 65, 81, 0.92)' },
+        labels: {
+          usePointStyle: true,
+          boxWidth: 8,
+          color: isDark ? '#94a3b8' : '#64748b',
+          font: { size: 11, family: 'monospace' },
+        },
       },
       title: { display: false },
       tooltip: { mode: 'index' as const, intersect: false },
@@ -68,11 +75,22 @@ export function MonthlyLineChart({ months, series }: Props) {
     scales: {
       x: {
         grid: { display: false },
-        ticks: { maxRotation: 0, autoSkip: true, color: isDark ? 'rgba(209, 213, 219, 0.9)' : 'rgba(55, 65, 81, 0.85)' },
+        ticks: {
+          maxRotation: 0,
+          autoSkip: true,
+          color: isDark ? '#64748b' : '#94a3b8',
+          font: { size: 10, family: 'monospace' },
+        },
       },
       y: {
-        ticks: { precision: 0, color: isDark ? 'rgba(209, 213, 219, 0.9)' : 'rgba(55, 65, 81, 0.85)' },
-        grid: { color: isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(17, 24, 39, 0.06)' },
+        ticks: {
+          precision: 0,
+          color: isDark ? '#64748b' : '#94a3b8',
+          font: { size: 10, family: 'monospace' },
+        },
+        grid: {
+          color: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+        },
       },
     },
   }

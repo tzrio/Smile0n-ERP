@@ -2,6 +2,7 @@
  * Theme (light/dark) state for the whole app.
  * - Persists to localStorage
  * - Applies Tailwind's `dark` class on `<html>`
+ * - Consistent default across login, auth gate, and dashboard
  */
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react'
 
@@ -13,7 +14,7 @@ type ThemeContextValue = {
   toggleTheme: () => void
 }
 
-const THEME_KEY = 'wallDecorAdmin.ui.theme.v1'
+const THEME_KEY = 'smileon.erp.theme'
 
 const ThemeContext = createContext<ThemeContextValue | null>(null)
 
@@ -29,7 +30,7 @@ function getPreferredTheme(): Theme {
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
   }
 
-  return 'light'
+  return 'dark' // default clean dark
 }
 
 function applyThemeToDom(theme: Theme) {

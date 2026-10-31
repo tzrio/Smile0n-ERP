@@ -11,6 +11,8 @@ export type Employee = {
   updatedAt: string
 }
 
+export type BusinessDivision = 'WALL_DECOR' | 'FOOD'
+
 export type ProductKind = 'FINISHED' | 'RAW_MATERIAL' | 'OTHER'
 
 export type Product = {
@@ -18,6 +20,7 @@ export type Product = {
   name: string
   category: string
   kind: ProductKind
+  division?: BusinessDivision
   createdAt: string
   updatedAt: string
 }

@@ -34,7 +34,8 @@ function normalizeData(data: AppData): AppData {
   data.products = Array.isArray(data.products)
     ? data.products.map((p) => {
         const kind = (p as any).kind as ProductKind | undefined
-        return { ...p, kind: kind ?? 'FINISHED' }
+        const division = (p as any).division ?? (p.category === 'Roti & Bakery' || p.name.toLowerCase().includes('bread') ? 'FOOD' : 'WALL_DECOR')
+        return { ...p, kind: kind ?? 'FINISHED', division }
       })
     : []
   data.stockMovements = Array.isArray(data.stockMovements) ? data.stockMovements : []
@@ -111,13 +112,14 @@ export const repoLocal = {
     list(): Product[] {
       return ensureData().products
     },
-    create(input: { name: string; category: string; kind: ProductKind }): Product {
+    create(input: { name: string; category: string; kind: ProductKind; division?: 'WALL_DECOR' | 'FOOD' }): Product {
       const now = isoNow()
       const p: Product = {
         id: createId('prd'),
         name: input.name,
         category: input.category,
         kind: input.kind,
+        division: input.division ?? 'WALL_DECOR',
         createdAt: now,
         updatedAt: now,
       }

@@ -105,11 +105,13 @@ function mapProduct(id: string, data: any): Product {
   const createdAt = toIsoMaybe(data?.createdAt) || isoNow()
   const updatedAt = toIsoMaybe(data?.updatedAt) || createdAt
   const kind = String(data?.kind ?? 'FINISHED')
+  const division = data?.division === 'FOOD' ? 'FOOD' : 'WALL_DECOR'
   return {
     id,
     name: String(data?.name ?? ''),
     category: String(data?.category ?? ''),
     kind: kind === 'RAW_MATERIAL' || kind === 'OTHER' ? (kind as any) : 'FINISHED',
+    division,
     createdAt,
     updatedAt,
   }
@@ -491,6 +493,7 @@ export const repoFirebase = {
         name: input.name,
         category: input.category,
         kind: input.kind,
+        division: (input as any).division ?? 'WALL_DECOR',
         createdAt: now,
         updatedAt: now,
       }

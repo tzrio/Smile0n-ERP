@@ -1,7 +1,3 @@
-/**
- * Simple content container with optional header.
- * Used across pages; supports dark mode styles.
- */
 import type { ReactNode } from 'react'
 
 type Props = {
@@ -9,21 +5,38 @@ type Props = {
   description?: string
   children: ReactNode
   right?: ReactNode
+  className?: string
 }
 
-export function Card({ title, description, right, children }: Props) {
+export function Card({ title, description, right, children, className }: Props) {
   return (
-    <section className="rounded-xl bg-white shadow-sm ring-1 ring-gray-200/70 dark:bg-gray-900 dark:ring-white/10">
+    <section
+      className={[
+        'rounded-xl border border-slate-200/90 bg-white/80 shadow-[0_1px_3px_rgba(0,0,0,0.03)] backdrop-blur-xs transition-shadow duration-150',
+        'dark:border-slate-800/80 dark:bg-[#0f172a]/70 dark:shadow-none',
+        className,
+      ]
+        .filter(Boolean)
+        .join(' ')}
+    >
       {(title || description || right) && (
-        <header className="flex items-start justify-between gap-4 border-b border-gray-200/70 px-4 py-3.5 dark:border-white/10 sm:px-5 sm:py-4">
+        <header className="flex items-center justify-between gap-4 border-b border-slate-100 px-5 py-3.5 dark:border-slate-800/70">
           <div>
-            {title && <h2 className="text-sm font-semibold tracking-tight text-gray-900 dark:text-gray-100">{title}</h2>}
-            {description && <p className="mt-1 text-xs leading-5 text-gray-600 dark:text-gray-300">{description}</p>}
+            {title && (
+              <h2 className="text-sm font-semibold tracking-tight text-slate-800 dark:text-slate-100">
+                {title}
+              </h2>
+            )}
+            {description && (
+              <p className="mt-0.5 text-xs text-slate-500 dark:text-slate-400">
+                {description}
+              </p>
+            )}
           </div>
-          {right}
+          {right && <div className="shrink-0">{right}</div>}
         </header>
       )}
-      <div className="px-4 py-3.5 sm:px-5 sm:py-4">{children}</div>
+      <div className="p-5">{children}</div>
     </section>
   )
 }

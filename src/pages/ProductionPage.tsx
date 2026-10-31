@@ -1,8 +1,7 @@
 /**
  * Production page:
- * - Converts raw materials OUT into finished goods IN
- * - Creates stock logs automatically
- * - History + export CSV
+ * Dedicated to Wall Decor division crafting (Bahan Mentah -> Barang Jadi)
+ * Friendly explanation for Food Reseller division where production is skipped.
  */
 import { useEffect, useMemo, useState } from 'react'
 import { Button } from '../components/Button'
@@ -14,6 +13,7 @@ import { Table } from '../components/Table'
 import { EmptyState } from '../components/EmptyState'
 import { repo } from '../data/repository'
 import { useAppData } from '../data/useAppData'
+import { useDivision } from '../app/DivisionContext'
 import type { Product } from '../data/types'
 import { computeProductStock } from '../domain/selectors'
 import { formatDate, isoNow } from '../utils/date'
@@ -29,11 +29,27 @@ export function ProductionPage() {
   const data = useAppData()
   const toast = useToast()
   const auth = useAuth()
+  const { division } = useDivision()
 
   const canDeleteHistory = auth.hasRole(['CEO', 'CTO', 'CMO'])
 
-  const rawProducts = useMemo(() => data.products.filter((p) => p.kind === 'RAW_MATERIAL').slice().sort(byName), [data.products])
-  const finishedProducts = useMemo(() => data.products.filter((p) => p.kind === 'FINISHED').slice().sort(byName), [data.products])
+  // Wall decor products for craft conversion
+  const rawProducts = useMemo(
+    () =>
+      data.products
+        .filter((p) => p.kind === 'RAW_MATERIAL')
+        .slice()
+        .sort(byName),
+    [data.products]
+  )
+  const finishedProducts = useMemo(
+    () =>
+      data.products
+        .filter((p) => p.kind === 'FINISHED' && p.division !== 'FOOD')
+        .slice()
+        .sort(byName),
+    [data.products]
+  )
 
   const stockRows = useMemo(() => computeProductStock(data), [data])
   const remainingByProductId = useMemo(() => {
@@ -101,7 +117,7 @@ export function ProductionPage() {
       { header: 'Catatan', value: (p) => p.notes ?? '' },
     ])
 
-    toast.success('CSV produksi berhasil dibuat')
+    toast.success('CSV produksi berhasil diexport')
   }
 
   async function addProduction() {
@@ -109,19 +125,19 @@ export function ProductionPage() {
     setSaving(true)
     try {
       if (!rawProductId) {
-        setError('Pilih bahan mentah')
+        setError('Pilih bahan mentah terlebih dulu')
         return
       }
       if (!finishedProductId) {
-        setError('Pilih barang jadi')
+        setError('Pilih barang jadi hasil produksi')
         return
       }
       if (!responsibleEmployeeId) {
-        setError('Pilih penanggung jawab')
+        setError('Pilih anggota penanggung jawab')
         return
       }
       if (rawQuantity <= 0 || finishedQuantity <= 0) {
-        setError('Qty harus > 0')
+        setError('Kuantitas bahan dan hasil harus > 0')
         return
       }
       const dateIso = new Date(date).toISOString()
@@ -139,7 +155,7 @@ export function ProductionPage() {
       )
 
       setNotes('')
-      toast.success('Produksi berhasil disimpan')
+      toast.success('Laporan produksi kerajinan tersimpan')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Gagal menyimpan produksi'
       setError(msg)
@@ -152,7 +168,7 @@ export function ProductionPage() {
   async function deleteProduction(id: string) {
     setError(null)
     if (!canDeleteHistory) {
-      const msg = 'Hanya karyawan (CEO/CTO/CMO) yang bisa menghapus riwayat produksi'
+      const msg = 'Hanya pimpinan (CEO/CTO/CMO) yang bisa menghapus riwayat produksi'
       setError(msg)
       toast.error(msg)
       return
@@ -160,10 +176,12 @@ export function ProductionPage() {
 
     setDeletingProductionId(id)
     try {
-      const ok = window.confirm('Hapus item riwayat produksi ini? Stok masuk/keluar terkait juga akan dihapus.')
+      const ok = window.confirm(
+        'Hapus item riwayat produksi ini? Mutasi stok terkait (IN/OUT) akan otomatis dibatalkan.'
+      )
       if (!ok) return
       await Promise.resolve((repo as any).productions.remove(id))
-      toast.success('Riwayat produksi berhasil dihapus')
+      toast.success('Riwayat produksi dihapus')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Gagal menghapus riwayat produksi'
       setError(msg)
@@ -176,48 +194,94 @@ export function ProductionPage() {
   return (
     <div className="space-y-6">
       <PageHeader
-        title="Produksi"
-        subtitle="Konversi bahan mentah menjadi barang jadi: bahan keluar (OUT) dan barang jadi masuk (IN) dicatat otomatis."
+        title="Operasional Produksi (Wall Decor)"
+        subtitle="Alur konversi bahan mentah menjadi barang jadi hiasan dinding yang siap kirim."
         right={
           <Button
             variant="secondary"
+            size="sm"
             onClick={exportProductionsCsv}
             disabled={history.length === 0}
-            title={history.length === 0 ? 'Tidak ada data untuk diexport' : 'Export CSV'}
           >
-            Export CSV
+            Export Laporan
           </Button>
         }
       />
 
-      <Card title="Tambah Produksi" description="Membuat 2 log stok otomatis: bahan OUT + barang jadi IN.">
-        <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+      {/* Info notice for food reseller */}
+      {division === 'FOOD' ? (
+        <div className="rounded-xl border border-amber-200 bg-amber-50/70 p-4 dark:border-amber-900/50 dark:bg-amber-950/20">
+          <div className="flex gap-3">
+            <svg
+              viewBox="0 0 24 24"
+              className="h-5 w-5 text-amber-700 dark:text-amber-400 shrink-0 mt-0.5"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" x2="12" y1="8" y2="12" />
+              <line x1="12" x2="12.01" y1="16" y2="16" />
+            </svg>
+            <div>
+              <h4 className="text-sm font-semibold text-amber-900 dark:text-amber-200">
+                Divisi Makanan / Bakery adalah Reseller Langsung
+              </h4>
+              <p className="mt-1 text-xs text-amber-800 dark:text-amber-300 leading-relaxed">
+                Untuk produk makanan (Garlic Bread & Chocolate Bread), Smile0n beroperasi dengan sistem{' '}
+                <strong>beli langsung & jual kembali</strong> tanpa melalui proses perakitan/produksi. Pencatatan
+                pembelian barang langsung menambah stok siap jual di menu <strong>Transaksi Kas</strong>.
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {/* Form Input */}
+      <Card
+        title="Catat Batch Produksi Kerajinan"
+        description="Sistem akan otomatis mengurangi stok bahan mentah (OUT) dan menambah stok barang jadi (IN)."
+      >
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <div>
-            <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Tanggal</div>
+            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+              Tanggal Produksi
+            </label>
             <div className="mt-1">
               <Input type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
           </div>
 
           <div>
-            <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Penanggung Jawab</div>
+            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+              Penanggung Jawab Produksi
+            </label>
             <div className="mt-1">
-              <Select value={responsibleEmployeeId} onChange={(e) => setResponsibleEmployeeId(e.target.value)}>
+              <Select
+                value={responsibleEmployeeId}
+                onChange={(e) => setResponsibleEmployeeId(e.target.value)}
+              >
                 {data.employees.map((emp) => (
                   <option key={emp.id} value={emp.id}>
-                    {emp.name}
+                    {emp.name} ({emp.position})
                   </option>
                 ))}
               </Select>
             </div>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-gray-950/40">
-            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Bahan Mentah (OUT)</div>
-            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-[1fr_120px]">
-              <Select value={rawProductId} onChange={(e) => setRawProductId(e.target.value)} disabled={rawProducts.length === 0}>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/30">
+            <div className="text-xs font-bold uppercase tracking-wider text-rose-600 dark:text-rose-400">
+              Bahan Mentah Digunakan (OUT)
+            </div>
+            <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_100px]">
+              <Select
+                value={rawProductId}
+                onChange={(e) => setRawProductId(e.target.value)}
+                disabled={rawProducts.length === 0}
+              >
                 {rawProducts.length === 0 ? (
-                  <option value="">Belum ada produk dengan keterangan "Bahan mentah"</option>
+                  <option value="">Belum ada bahan mentah terdaftar</option>
                 ) : (
                   rawProducts.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -231,17 +295,29 @@ export function ProductionPage() {
                 min={1}
                 value={rawQuantity}
                 onChange={(e) => setRawQuantity(Number(e.target.value))}
+                placeholder="Qty"
               />
             </div>
-            <div className="mt-2 text-xs text-gray-700 dark:text-gray-300">Sisa stok saat ini: <span className="font-semibold text-gray-900 dark:text-gray-100">{rawRemaining}</span></div>
+            <div className="mt-2 text-xs text-slate-500">
+              Sisa stok tersedia:{' '}
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                {rawRemaining} unit
+              </span>
+            </div>
           </div>
 
-          <div className="rounded-xl border border-gray-200 bg-gray-50 p-3 dark:border-white/10 dark:bg-gray-950/40">
-            <div className="text-sm font-semibold text-gray-900 dark:text-gray-100">Barang Jadi (IN)</div>
-            <div className="mt-2 grid grid-cols-1 gap-2 md:grid-cols-[1fr_120px]">
-              <Select value={finishedProductId} onChange={(e) => setFinishedProductId(e.target.value)} disabled={finishedProducts.length === 0}>
+          <div className="rounded-xl border border-slate-200 bg-slate-50/50 p-4 dark:border-slate-800 dark:bg-slate-800/30">
+            <div className="text-xs font-bold uppercase tracking-wider text-emerald-600 dark:text-emerald-400">
+              Hasil Barang Jadi (IN)
+            </div>
+            <div className="mt-2.5 grid grid-cols-1 gap-2 sm:grid-cols-[1fr_100px]">
+              <Select
+                value={finishedProductId}
+                onChange={(e) => setFinishedProductId(e.target.value)}
+                disabled={finishedProducts.length === 0}
+              >
                 {finishedProducts.length === 0 ? (
-                  <option value="">Belum ada produk dengan keterangan "Barang jadi"</option>
+                  <option value="">Belum ada barang jadi kerajinan</option>
                 ) : (
                   finishedProducts.map((p) => (
                     <option key={p.id} value={p.id}>
@@ -255,40 +331,60 @@ export function ProductionPage() {
                 min={1}
                 value={finishedQuantity}
                 onChange={(e) => setFinishedQuantity(Number(e.target.value))}
+                placeholder="Qty"
               />
             </div>
-            <div className="mt-2 text-xs text-gray-700 dark:text-gray-300">Sisa stok saat ini: <span className="font-semibold text-gray-900 dark:text-gray-100">{finishedRemaining}</span></div>
+            <div className="mt-2 text-xs text-slate-500">
+              Sisa stok saat ini:{' '}
+              <span className="font-semibold text-slate-800 dark:text-slate-200">
+                {finishedRemaining} unit
+              </span>
+            </div>
           </div>
 
-          <div className="md:col-span-2">
-            <div className="text-xs font-medium text-gray-700 dark:text-gray-300">Catatan (opsional)</div>
+          <div className="sm:col-span-2">
+            <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+              Catatan Pengerjaan (opsional)
+            </label>
             <div className="mt-1">
-              <Input value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Contoh: Produksi batch #12 / 3 set wall decor" />
+              <Input
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Misal: Finishing vernis kayu, batch 3 pcs pajangan dinding"
+              />
             </div>
           </div>
         </div>
 
-        <div className="mt-3">
-          <Button type="button" onClick={addProduction} className="w-full md:w-auto" disabled={saving}>
-            {saving ? 'Menyimpan...' : 'Simpan Produksi'}
+        {error && (
+          <div className="mt-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-xs font-medium text-rose-700 dark:border-rose-900/40 dark:bg-rose-950/20 dark:text-rose-400">
+            {error}
+          </div>
+        )}
+
+        <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+          <Button type="button" onClick={addProduction} disabled={saving}>
+            {saving ? 'Menyimpan...' : 'Simpan Laporan Produksi'}
           </Button>
         </div>
-
-        {error && <div className="mt-3 rounded-md border border-gray-200 bg-gray-50 p-3 text-sm text-gray-900 dark:border-white/10 dark:bg-gray-950/40 dark:text-gray-100">{error}</div>}
       </Card>
 
-      <Card title="Riwayat Produksi" description="Riwayat produksi yang men-trigger log stok otomatis (OUT bahan + IN barang jadi).">
+      {/* History Table */}
+      <Card
+        title="Riwayat Produksi Kerajinan"
+        description="Daftar batch perakitan hiasan dinding yang telah selesai dikerjakan."
+      >
         {history.length === 0 ? (
           <EmptyState
             title="Belum ada riwayat produksi"
-            description="Tambah produksi untuk mulai mencatat konversi bahan mentah menjadi barang jadi."
+            description="Catat laporan produksi pertama Anda untuk mengonversi stok bahan mentah."
           />
         ) : (
           <Table
             headers={
               canDeleteHistory
-                ? ['Tanggal', 'Bahan Mentah', 'Qty OUT', 'Barang Jadi', 'Qty IN', 'Penanggung Jawab', 'Catatan', 'Aksi']
-                : ['Tanggal', 'Bahan Mentah', 'Qty OUT', 'Barang Jadi', 'Qty IN', 'Penanggung Jawab', 'Catatan']
+                ? ['Tanggal', 'Bahan Terpakai', 'Qty OUT', 'Hasil Barang Jadi', 'Qty IN', 'Penanggung Jawab', 'Catatan', 'Aksi']
+                : ['Tanggal', 'Bahan Terpakai', 'Qty OUT', 'Hasil Barang Jadi', 'Qty IN', 'Penanggung Jawab', 'Catatan']
             }
           >
             {history.map((p) => {
@@ -296,24 +392,36 @@ export function ProductionPage() {
               const fin = data.products.find((x) => x.id === p.finishedProductId)
               const emp = data.employees.find((x) => x.id === p.responsibleEmployeeId)
               return (
-                <tr key={p.id} className="hover:bg-gray-50 dark:hover:bg-white/5">
-                  <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{formatDate(p.date)}</td>
-                  <td className="px-4 py-2.5 text-gray-900 dark:text-gray-100">{raw?.name ?? p.rawProductId}</td>
-                  <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{p.rawQuantity}</td>
-                  <td className="px-4 py-2.5 text-gray-900 dark:text-gray-100">{fin?.name ?? p.finishedProductId}</td>
-                  <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{p.finishedQuantity}</td>
-                  <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{emp?.name ?? p.responsibleEmployeeId}</td>
-                  <td className="px-4 py-2.5 text-gray-700 dark:text-gray-300">{p.notes ?? '-'}</td>
+                <tr key={p.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
+                  <td className="px-4 py-3 font-mono text-xs text-slate-500">{formatDate(p.date)}</td>
+                  <td className="px-4 py-3 text-slate-900 dark:text-slate-100 font-medium">
+                    {raw?.name ?? p.rawProductId}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-rose-600 dark:text-rose-400">
+                    -{p.rawQuantity}
+                  </td>
+                  <td className="px-4 py-3 text-slate-900 dark:text-slate-100 font-medium">
+                    {fin?.name ?? p.finishedProductId}
+                  </td>
+                  <td className="px-4 py-3 font-mono text-emerald-600 dark:text-emerald-400">
+                    +{p.finishedQuantity}
+                  </td>
+                  <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
+                    {emp?.name ?? p.responsibleEmployeeId}
+                  </td>
+                  <td className="px-4 py-3 text-xs text-slate-500 max-w-xs truncate">
+                    {p.notes || '-'}
+                  </td>
                   {canDeleteHistory && (
-                    <td className="px-4 py-2.5">
+                    <td className="px-4 py-3">
                       <Button
-                        type="button"
-                        variant="danger"
-                        className="px-2 py-1 text-xs"
+                        size="sm"
+                        variant="ghost"
+                        className="text-rose-600 hover:text-rose-700 dark:text-rose-400"
                         onClick={() => void deleteProduction(p.id)}
                         disabled={deletingProductionId === p.id}
                       >
-                        {deletingProductionId === p.id ? '...' : 'Hapus'}
+                        Hapus
                       </Button>
                     </td>
                   )}

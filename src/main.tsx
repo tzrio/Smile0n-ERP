@@ -12,6 +12,7 @@ import { ErrorBoundary } from './app/ErrorBoundary'
 import { FirebaseConfigGate } from './app/FirebaseConfigGate'
 import { ToastProvider } from './app/ToastContext'
 import { ThemeProvider } from './app/ThemeContext'
+import { DivisionProvider } from './app/DivisionContext'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -20,9 +21,11 @@ createRoot(document.getElementById('root')!).render(
         <FirebaseConfigGate>
           <HashRouter>
             <AuthProvider>
-              <ErrorBoundary>
-                <App />
-              </ErrorBoundary>
+              <DivisionProvider>
+                <ErrorBoundary>
+                  <App />
+                </ErrorBoundary>
+              </DivisionProvider>
             </AuthProvider>
           </HashRouter>
         </FirebaseConfigGate>

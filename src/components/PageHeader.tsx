@@ -4,16 +4,26 @@ type Props = {
   title: string
   subtitle?: string
   right?: ReactNode
+  badge?: ReactNode
 }
 
-export function PageHeader({ title, subtitle, right }: Props) {
+export function PageHeader({ title, subtitle, right, badge }: Props) {
   return (
-    <div className="flex flex-col gap-2 md:flex-row md:items-end md:justify-between">
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
       <div>
-        <h1 className="text-xl font-semibold tracking-tight text-gray-900 dark:text-gray-100 md:text-2xl">{title}</h1>
-        {subtitle && <p className="mt-1 text-sm leading-6 text-gray-600 dark:text-gray-300">{subtitle}</p>}
+        <div className="flex items-center gap-2.5">
+          <h1 className="text-xl font-semibold tracking-tight text-slate-900 dark:text-slate-100 sm:text-2xl">
+            {title}
+          </h1>
+          {badge}
+        </div>
+        {subtitle && (
+          <p className="mt-1 text-xs text-slate-500 dark:text-slate-400 sm:text-sm">
+            {subtitle}
+          </p>
+        )}
       </div>
-      {right}
+      {right && <div className="flex flex-wrap items-center gap-2">{right}</div>}
     </div>
   )
 }

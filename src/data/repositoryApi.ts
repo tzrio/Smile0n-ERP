@@ -35,13 +35,14 @@ export const repoApi = {
     list(): Product[] {
       return getApiSnapshot().products
     },
-    create(input: { name: string; category: string; kind: ProductKind }): Product {
-      void mutateAndRefresh(() => apiRepo.products.create(input))
+    create(input: { name: string; category: string; kind: ProductKind; division?: 'WALL_DECOR' | 'FOOD' }): Product {
+      void mutateAndRefresh(() => (apiRepo.products as any).create(input))
       return {
         id: 'pending',
         name: input.name,
         category: input.category,
         kind: input.kind,
+        division: input.division ?? 'WALL_DECOR',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       }

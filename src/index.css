@@ -9,7 +9,11 @@
   }
 
   body {
-    @apply bg-gray-100 text-gray-900 antialiased dark:bg-gray-950 dark:text-gray-100;
+    /*
+      Palet Light Mode: warm canvas #f8fafc dengan teks netral slate-800, tidak blinding white.
+      Palet Dark Mode: zinc deep workspace #09090b dengan teks soft slate-200.
+    */
+    @apply bg-slate-100 text-slate-800 antialiased dark:bg-[#090d16] dark:text-slate-200 selection:bg-slate-800 selection:text-white dark:selection:bg-slate-200 dark:selection:text-slate-900;
   }
 
   #root {

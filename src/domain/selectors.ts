@@ -38,11 +38,21 @@ export type FinanceSummary = {
   cashBalance: number
 }
 
-export function computeFinanceSummary(data: AppData): FinanceSummary {
-  const totalSales = data.transactions
+export function computeFinanceSummary(
+  data: AppData,
+  options?: { productIds?: Set<string> }
+): FinanceSummary {
+  const transactions = options?.productIds
+    ? data.transactions.filter((t) => {
+        if (!t.items || t.items.length === 0) return true
+        return t.items.some((it) => options.productIds!.has(it.productId))
+      })
+    : data.transactions
+
+  const totalSales = transactions
     .filter((t) => t.type === 'SALE')
     .reduce((acc, t) => acc + t.amount, 0)
-  const totalPurchases = data.transactions
+  const totalPurchases = transactions
     .filter((t) => t.type === 'PURCHASE')
     .reduce((acc, t) => acc + t.amount, 0)
   const profit = totalSales - totalPurchases
@@ -95,8 +105,15 @@ export function computeMonthlyAnalytics(
 ): MonthlyAnalytics {
   const monthKeys = lastNMonthKeys(months)
 
-  const sales = sumByMonth(data.transactions, monthKeys, (t) => t.type === 'SALE')
-  const purchases = sumByMonth(data.transactions, monthKeys, (t) => t.type === 'PURCHASE')
+  const relevantTransactions = options?.productIds
+    ? data.transactions.filter((t) => {
+        if (!t.items || t.items.length === 0) return true
+        return t.items.some((it) => options.productIds!.has(it.productId))
+      })
+    : data.transactions
+
+  const sales = sumByMonth(relevantTransactions, monthKeys, (t) => t.type === 'SALE')
+  const purchases = sumByMonth(relevantTransactions, monthKeys, (t) => t.type === 'PURCHASE')
   const profit = monthKeys.map((k) => {
     const s = sales.find((p) => p.month === k)?.value ?? 0
     const b = purchases.find((p) => p.month === k)?.value ?? 0

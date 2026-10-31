@@ -4,6 +4,7 @@ import { useTheme } from '../../app/ThemeContext'
 
 /**
  * Theme-aware bar chart wrapper for monthly analytics.
+ * Palette: Muted subtle bars, ergonomic contrast.
  */
 
 type Props = {
@@ -19,8 +20,8 @@ export function MonthlyBarChart({ months, label, data }: Props) {
 
   if (!months.length || !data.length || !hasData) {
     return (
-      <div className="flex h-52 items-center justify-center rounded-xl bg-gradient-to-br from-white to-indigo-50 text-sm text-gray-600 ring-1 ring-gray-200/70 dark:from-gray-900 dark:to-gray-950 dark:text-gray-300 dark:ring-white/10 lg:h-64">
-        Belum ada data untuk ditampilkan.
+      <div className="flex h-52 items-center justify-center rounded-xl bg-slate-50/50 text-xs text-slate-500 border border-slate-200/70 dark:bg-slate-900/30 dark:text-slate-400 dark:border-slate-800 lg:h-64">
+        Belum ada mutasi barang pada periode ini.
       </div>
     )
   }
@@ -31,10 +32,26 @@ export function MonthlyBarChart({ months, label, data }: Props) {
       {
         label,
         data,
-        backgroundColor: data.map((v) => (v >= 0 ? 'rgba(79, 70, 229, 0.28)' : 'rgba(244, 63, 94, 0.28)')),
-        borderColor: data.map((v) => (v >= 0 ? 'rgb(79, 70, 229)' : 'rgb(244, 63, 94)')),
-        borderWidth: 1,
-        borderRadius: 8,
+        backgroundColor: data.map((v) =>
+          v >= 0
+            ? isDark
+              ? 'rgba(56, 189, 248, 0.25)'
+              : 'rgba(2, 132, 199, 0.2)'
+            : isDark
+            ? 'rgba(244, 63, 94, 0.25)'
+            : 'rgba(225, 29, 72, 0.2)'
+        ),
+        borderColor: data.map((v) =>
+          v >= 0
+            ? isDark
+              ? '#38bdf8'
+              : '#0284c7'
+            : isDark
+            ? '#f43f5e'
+            : '#e11d48'
+        ),
+        borderWidth: 1.5,
+        borderRadius: 4,
       },
     ],
   }
@@ -49,11 +66,22 @@ export function MonthlyBarChart({ months, label, data }: Props) {
     scales: {
       x: {
         grid: { display: false },
-        ticks: { maxRotation: 0, autoSkip: true, color: isDark ? 'rgba(209, 213, 219, 0.9)' : 'rgba(55, 65, 81, 0.85)' },
+        ticks: {
+          maxRotation: 0,
+          autoSkip: true,
+          color: isDark ? '#64748b' : '#94a3b8',
+          font: { size: 10, family: 'monospace' },
+        },
       },
       y: {
-        ticks: { precision: 0, color: isDark ? 'rgba(209, 213, 219, 0.9)' : 'rgba(55, 65, 81, 0.85)' },
-        grid: { color: isDark ? 'rgba(255, 255, 255, 0.10)' : 'rgba(17, 24, 39, 0.06)' },
+        ticks: {
+          precision: 0,
+          color: isDark ? '#64748b' : '#94a3b8',
+          font: { size: 10, family: 'monospace' },
+        },
+        grid: {
+          color: isDark ? 'rgba(255, 255, 255, 0.04)' : 'rgba(0, 0, 0, 0.04)',
+        },
       },
     },
   }
