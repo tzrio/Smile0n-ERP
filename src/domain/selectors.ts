@@ -162,3 +162,56 @@ export function computeWasteSummary(data: AppData, options?: { productIds?: Set<
 
   return { totalWasteQty, wasteByProduct }
 }
+
+export type DailyFinanceRow = {
+  /** ISO date key: YYYY-MM-DD */
+  date: string
+  sales: number
+  purchases: number
+  profit: number
+  /** Running cumulative cash from opening balance */
+  cumulativeCash: number
+  /** Individual transactions that day */
+  transactions: Transaction[]
+}
+
+/**
+ * Breakdown laporan keuangan per hari, diurutkan dari terbaru ke terlama.
+ * Hanya hari-hari yang memiliki transaksi yang dimunculkan.
+ */
+export function computeDailyFinance(
+  data: AppData,
+  options?: { productIds?: Set<string> }
+): DailyFinanceRow[] {
+  const relevantTransactions = options?.productIds
+    ? data.transactions.filter((t) => {
+        if (!t.items || t.items.length === 0) return true
+        return t.items.some((it) => options.productIds!.has(it.productId))
+      })
+    : data.transactions
+
+  // Group by date key YYYY-MM-DD
+  const byDay = new Map<string, Transaction[]>()
+  for (const t of relevantTransactions) {
+    const key = t.date.slice(0, 10)
+    const list = byDay.get(key) ?? []
+    list.push(t)
+    byDay.set(key, list)
+  }
+
+  // Sort days ascending to compute running cumulative
+  const sortedDays = Array.from(byDay.keys()).sort()
+
+  let running = data.settings.cashOpeningBalance
+  const rows: DailyFinanceRow[] = sortedDays.map((date) => {
+    const txs = byDay.get(date)!
+    const sales = txs.filter((t) => t.type === 'SALE').reduce((s, t) => s + t.amount, 0)
+    const purchases = txs.filter((t) => t.type === 'PURCHASE').reduce((s, t) => s + t.amount, 0)
+    const profit = sales - purchases
+    running += profit
+    return { date, sales, purchases, profit, cumulativeCash: running, transactions: txs }
+  })
+
+  // Return descending (newest first) for display
+  return rows.slice().reverse()
+}
