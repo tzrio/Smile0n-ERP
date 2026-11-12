@@ -21,6 +21,7 @@ import {
   getDocs,
   onSnapshot,
   query,
+  serverTimestamp,
   setDoc,
   updateDoc,
   where,
@@ -126,6 +127,7 @@ function mapStockMovement(id: string, data: any): StockMovement {
     movementKind: validKinds.includes(data?.movementKind) ? data.movementKind : undefined,
     quantity: Number(data?.quantity ?? 0),
     date: toIsoMaybe(data?.date) || isoNow(),
+    createdAt: toIsoMaybe(data?.createdAt) || undefined,
     responsibleEmployeeId: String(data?.responsibleEmployeeId ?? data?.responsibleUserId ?? ''),
     notes: data?.notes ? String(data.notes) : undefined,
     sourceType: data?.sourceType === 'TRANSACTION' || data?.sourceType === 'PRODUCTION' ? data.sourceType : (data?.sourceType === 'MANUAL' ? 'MANUAL' : undefined),
@@ -149,6 +151,7 @@ function mapTransaction(id: string, data: any): Transaction {
           .filter((it: TransactionItem) => Boolean(it.productId))
       : undefined,
     date: toIsoMaybe(data?.date) || isoNow(),
+    createdAt: toIsoMaybe(data?.createdAt) || undefined,
     responsibleEmployeeId: String(data?.responsibleEmployeeId ?? data?.responsibleUserId ?? ''),
   }
 }
@@ -526,14 +529,17 @@ export const repoFirebase = {
       const firestoreDb = (db ??= getFirestoreDb())
       if (input.quantity <= 0) throw new Error('Qty harus > 0')
       const id = createId('stk')
+      const now = isoNow()
       const m: StockMovement = {
         ...input,
         sourceType: input.sourceType ?? 'MANUAL',
         id,
+        createdAt: now,
         ...(input.movementKind ? { movementKind: input.movementKind } : {}),
         ...(input.notes ? { notes: input.notes } : {}),
       }
-      await setDoc(doc(firestoreDb, 'stockMovements', id), m)
+      // Store createdAt as serverTimestamp for accurate ordering, but keep ISO in memory
+      await setDoc(doc(firestoreDb, 'stockMovements', id), { ...m, createdAt: serverTimestamp() })
       return m
     },
     async remove(id: string): Promise<void> {
@@ -550,6 +556,7 @@ export const repoFirebase = {
       const firestoreDb = (db ??= getFirestoreDb())
       const transactionId = createId('trx')
       const hasItems = Array.isArray(input.items) && input.items.length > 0
+      const now = isoNow()
 
       if (hasItems) {
         for (const it of input.items ?? []) {
@@ -558,15 +565,43 @@ export const repoFirebase = {
           if (Number(it.unitPrice) <= 0) throw new Error('Harga satuan item transaksi harus > 0')
         }
 
+        // ── Stock check for SALE ──────────────────────────────────────────────
+        if (input.type === 'SALE') {
+          // Hitung stok per produk dari snapshot saat ini
+          const stockByProduct = new Map<string, number>()
+          for (const m of snapshot.stockMovements) {
+            const cur = stockByProduct.get(m.productId) ?? 0
+            stockByProduct.set(m.productId, cur + (m.type === 'IN' ? m.quantity : -m.quantity))
+          }
+
+          // Akumulasi qty yang diminta dalam transaksi ini (satu produk bisa muncul beberapa baris)
+          const requestedByProduct = new Map<string, number>()
+          for (const it of input.items ?? []) {
+            requestedByProduct.set(it.productId, (requestedByProduct.get(it.productId) ?? 0) + Number(it.quantity))
+          }
+
+          for (const [productId, requested] of requestedByProduct) {
+            const available = stockByProduct.get(productId) ?? 0
+            if (available < requested) {
+              const productName = snapshot.products.find((p) => p.id === productId)?.name ?? productId
+              throw new Error(
+                `Stok "${productName}" tidak cukup. Tersedia: ${available} unit, diminta: ${requested} unit. Pastikan sudah catat pembelian/kulakan terlebih dahulu.`
+              )
+            }
+          }
+        }
+        // ─────────────────────────────────────────────────────────────────────
+
         const amount = (input.items ?? []).reduce((sum, it) => sum + Number(it.quantity) * Number(it.unitPrice), 0)
         if (amount <= 0) throw new Error('Total transaksi harus > 0')
 
-        const t: Transaction = { ...input, items: input.items, amount, id: transactionId }
+        const t: Transaction = { ...input, items: input.items, amount, id: transactionId, createdAt: now }
 
         const movementType: StockMovement['type'] = input.type === 'SALE' ? 'OUT' : 'IN'
+        const movementKind: StockMovement['movementKind'] = input.type === 'SALE' ? 'SALE' : 'PURCHASE'
         const batch = writeBatch(firestoreDb)
 
-        batch.set(doc(firestoreDb, 'transactions', transactionId), t)
+        batch.set(doc(firestoreDb, 'transactions', transactionId), { ...t, createdAt: serverTimestamp() })
 
         for (const it of input.items ?? []) {
           const movementId = createId('stk')
@@ -574,13 +609,15 @@ export const repoFirebase = {
             id: movementId,
             productId: it.productId,
             type: movementType,
+            movementKind,
             quantity: Number(it.quantity),
             date: input.date,
+            createdAt: now,
             responsibleEmployeeId: input.responsibleEmployeeId,
             sourceType: 'TRANSACTION',
             sourceId: transactionId,
           }
-          batch.set(doc(firestoreDb, 'stockMovements', movementId), m)
+          batch.set(doc(firestoreDb, 'stockMovements', movementId), { ...m, createdAt: serverTimestamp() })
         }
 
         await batch.commit()
@@ -588,8 +625,8 @@ export const repoFirebase = {
       }
 
       if (Number(input.amount) <= 0) throw new Error('Nominal transaksi harus > 0')
-      const t: Transaction = { ...input, items: undefined, id: transactionId }
-      await setDoc(doc(firestoreDb, 'transactions', transactionId), t)
+      const t: Transaction = { ...input, items: undefined, id: transactionId, createdAt: now }
+      await setDoc(doc(firestoreDb, 'transactions', transactionId), { ...t, createdAt: serverTimestamp() })
       return t
     },
     async remove(id: string): Promise<void> {

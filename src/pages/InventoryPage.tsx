@@ -21,6 +21,7 @@ import { isoNow, formatDate } from '../utils/date'
 import { downloadCsv } from '../utils/csv'
 import { useToast } from '../app/ToastContext'
 import { useAuth } from '../auth/AuthContext'
+import { useSortableTable } from '../hooks/useSortableTable'
 
 function productKindLabel(kind: ProductKind) {
   if (kind === 'FINISHED') return 'Barang Siap Jual'
@@ -121,8 +122,6 @@ export function InventoryPage() {
         const hay = `${p?.name ?? m.productId} ${emp?.name ?? ''} ${m.type}`.toLowerCase()
         return hay.includes(q)
       })
-      .slice()
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [
     data.employees,
     data.products,
@@ -133,6 +132,24 @@ export function InventoryPage() {
     movementSearch,
     scopedProducts,
   ])
+
+  const { sortState: movSortState, toggleSort: movToggleSort, sorted: sortedMovements } = useSortableTable(
+    filteredMovements,
+    {
+      defaultKey: 'createdAt',
+      defaultDir: 'desc',
+      getValue: (m, key) => {
+        if (key === 'date') return new Date(m.date).getTime()
+        if (key === 'createdAt') return new Date(m.createdAt ?? m.date).getTime()
+        if (key === 'product') return data.products.find((p) => p.id === m.productId)?.name ?? ''
+        if (key === 'type') return m.type
+        if (key === 'kind') return m.movementKind ?? m.sourceType ?? ''
+        if (key === 'qty') return m.quantity
+        if (key === 'responsible') return data.employees.find((e) => e.id === m.responsibleEmployeeId)?.name ?? ''
+        return ''
+      },
+    }
+  )
 
   function exportStockSummaryCsv() {
     const rows = stockRows
@@ -150,7 +167,7 @@ export function InventoryPage() {
   }
 
   function exportStockMovementsCsv() {
-    const rows = filteredMovements
+    const rows = sortedMovements
     const filename = `stok-mutasi-${new Date(isoNow()).toISOString().slice(0, 10)}`
     downloadCsv(filename, rows, [
       { header: 'Tanggal', value: (m) => m.date },
@@ -753,11 +770,30 @@ export function InventoryPage() {
           <Table
             headers={
               canDeleteHistory
-                ? ['Tanggal', 'Produk', 'Arah', 'Jenis', 'Qty', 'Penanggung Jawab', 'Catatan', 'Aksi']
-                : ['Tanggal', 'Produk', 'Arah', 'Jenis', 'Qty', 'Penanggung Jawab', 'Catatan']
+                ? [
+                    { label: 'Tanggal', sortKey: 'date' },
+                    { label: 'Produk', sortKey: 'product' },
+                    { label: 'Arah', sortKey: 'type' },
+                    { label: 'Jenis', sortKey: 'kind' },
+                    { label: 'Qty', sortKey: 'qty' },
+                    { label: 'Penanggung Jawab', sortKey: 'responsible' },
+                    'Catatan',
+                    'Aksi',
+                  ]
+                : [
+                    { label: 'Tanggal', sortKey: 'date' },
+                    { label: 'Produk', sortKey: 'product' },
+                    { label: 'Arah', sortKey: 'type' },
+                    { label: 'Jenis', sortKey: 'kind' },
+                    { label: 'Qty', sortKey: 'qty' },
+                    { label: 'Penanggung Jawab', sortKey: 'responsible' },
+                    'Catatan',
+                  ]
             }
+            sortState={movSortState}
+            onSort={movToggleSort}
           >
-            {filteredMovements.map((m) => {
+            {sortedMovements.map((m) => {
               const p = data.products.find((x) => x.id === m.productId)
               const emp = data.employees.find((x) => x.id === m.responsibleEmployeeId)
 

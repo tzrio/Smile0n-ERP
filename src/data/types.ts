@@ -42,6 +42,7 @@ export type StockMovement = {
   movementKind?: StockMovementKind
   quantity: number
   date: string
+  createdAt?: string   // ISO timestamp saat record dibuat — untuk sort tiebreaker
   responsibleEmployeeId: string
   notes?: string
   sourceType?: 'MANUAL' | 'TRANSACTION' | 'PRODUCTION'
@@ -63,6 +64,7 @@ export type Transaction = {
   amount: number
   items?: TransactionItem[]
   date: string
+  createdAt?: string   // ISO timestamp saat record dibuat — untuk sort tiebreaker
   responsibleEmployeeId: string
 }
 

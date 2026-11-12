@@ -20,6 +20,7 @@ import { formatIDR } from '../utils/money'
 import { downloadCsv } from '../utils/csv'
 import { useToast } from '../app/ToastContext'
 import { useAuth } from '../auth/AuthContext'
+import { useSortableTable } from '../hooks/useSortableTable'
 
 type TxMode = 'ITEMS' | 'SERVICE'
 
@@ -84,12 +85,27 @@ export function TransactionsPage() {
         if (toIso && t.date > toIso) return false
         return true
       })
-      .slice()
-      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
   }, [data.transactions, division, filterFrom, filterQuery, filterTo, filterType, scopedProducts])
 
+  const { sortState: trxSortState, toggleSort: trxToggleSort, sorted: sortedHistory } = useSortableTable(
+    history,
+    {
+      defaultKey: 'createdAt',
+      defaultDir: 'desc',
+      getValue: (t, key) => {
+        if (key === 'date') return new Date(t.date).getTime()
+        if (key === 'createdAt') return new Date(t.createdAt ?? t.date).getTime()
+        if (key === 'type') return t.type
+        if (key === 'description') return t.description
+        if (key === 'amount') return t.amount
+        if (key === 'responsible') return data.employees.find((e) => e.id === t.responsibleEmployeeId)?.name ?? ''
+        return ''
+      },
+    }
+  )
+
   function exportTransactionsCsv() {
-    const rows = history
+    const rows = sortedHistory
     const filename = `transaksi-${new Date(isoNow()).toISOString().slice(0, 10)}`
 
     downloadCsv(filename, rows, [
@@ -546,9 +562,19 @@ export function TransactionsPage() {
           />
         ) : (
           <Table
-            headers={['Tanggal', 'Jenis', 'Deskripsi', 'Kuantitas Item', 'Nominal', 'Penanggung Jawab', 'Aksi']}
+            headers={[
+              { label: 'Tanggal', sortKey: 'date' },
+              { label: 'Jenis', sortKey: 'type' },
+              { label: 'Deskripsi', sortKey: 'description' },
+              'Kuantitas Item',
+              { label: 'Nominal', sortKey: 'amount' },
+              { label: 'Penanggung Jawab', sortKey: 'responsible' },
+              'Aksi',
+            ]}
+            sortState={trxSortState}
+            onSort={trxToggleSort}
           >
-            {history.map((t) => {
+            {sortedHistory.map((t) => {
               const emp = data.employees.find((x) => x.id === t.responsibleEmployeeId)
               const hasItems = Array.isArray(t.items) && t.items.length > 0
               const expanded = Boolean(expandedIds[t.id])
