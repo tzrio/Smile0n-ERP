@@ -118,13 +118,16 @@ function mapProduct(id: string, data: any): Product {
 }
 
 function mapStockMovement(id: string, data: any): StockMovement {
+  const validKinds = ['SALE', 'WASTE', 'ADJUSTMENT', 'PURCHASE', 'PRODUCTION']
   return {
     id,
     productId: String(data?.productId ?? ''),
     type: data?.type === 'OUT' ? 'OUT' : 'IN',
+    movementKind: validKinds.includes(data?.movementKind) ? data.movementKind : undefined,
     quantity: Number(data?.quantity ?? 0),
     date: toIsoMaybe(data?.date) || isoNow(),
     responsibleEmployeeId: String(data?.responsibleEmployeeId ?? data?.responsibleUserId ?? ''),
+    notes: data?.notes ? String(data.notes) : undefined,
     sourceType: data?.sourceType === 'TRANSACTION' || data?.sourceType === 'PRODUCTION' ? data.sourceType : (data?.sourceType === 'MANUAL' ? 'MANUAL' : undefined),
     sourceId: data?.sourceId ? String(data.sourceId) : undefined,
   }
@@ -523,7 +526,13 @@ export const repoFirebase = {
       const firestoreDb = (db ??= getFirestoreDb())
       if (input.quantity <= 0) throw new Error('Qty harus > 0')
       const id = createId('stk')
-      const m: StockMovement = { ...input, sourceType: input.sourceType ?? 'MANUAL', id }
+      const m: StockMovement = {
+        ...input,
+        sourceType: input.sourceType ?? 'MANUAL',
+        id,
+        ...(input.movementKind ? { movementKind: input.movementKind } : {}),
+        ...(input.notes ? { notes: input.notes } : {}),
+      }
       await setDoc(doc(firestoreDb, 'stockMovements', id), m)
       return m
     },

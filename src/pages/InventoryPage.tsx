@@ -16,7 +16,7 @@ import { repo } from '../data/repository'
 import { useAppData } from '../data/useAppData'
 import { useDivision } from '../app/DivisionContext'
 import { computeProductStock } from '../domain/selectors'
-import type { BusinessDivision, ProductKind, StockMovementType } from '../data/types'
+import type { BusinessDivision, ProductKind, StockMovementKind, StockMovementType } from '../data/types'
 import { isoNow, formatDate } from '../utils/date'
 import { downloadCsv } from '../utils/csv'
 import { useToast } from '../app/ToastContext'
@@ -80,6 +80,8 @@ export function InventoryPage() {
   // Form Stock Movement
   const [movementProductId, setMovementProductId] = useState(scopedProducts[0]?.id ?? '')
   const [movementType, setMovementType] = useState<StockMovementType>('IN')
+  const [movementKind, setMovementKind] = useState<StockMovementKind | ''>('')
+  const [movementNotes, setMovementNotes] = useState('')
   const [movementQty, setMovementQty] = useState(1)
   const [movementDate, setMovementDate] = useState(() => formatDate(isoNow()))
   const [movementEmployeeId, setMovementEmployeeId] = useState(data.employees[0]?.id ?? '')
@@ -157,11 +159,13 @@ export function InventoryPage() {
         value: (m) => data.products.find((p) => p.id === m.productId)?.name ?? m.productId,
       },
       { header: 'Jenis', value: (m) => m.type },
+      { header: 'Kategori', value: (m) => m.movementKind ?? (m.sourceType ?? 'MANUAL') },
       { header: 'Qty', value: (m) => m.quantity },
       {
         header: 'Penanggung Jawab',
         value: (m) => data.employees.find((e) => e.id === m.responsibleEmployeeId)?.name ?? m.responsibleEmployeeId,
       },
+      { header: 'Catatan', value: (m) => m.notes ?? '' },
       { header: 'Source', value: (m) => m.sourceType ?? 'MANUAL' },
     ])
     toast.success('CSV mutasi stok berhasil diexport')
@@ -231,9 +235,13 @@ export function InventoryPage() {
           date: dateIso,
           responsibleEmployeeId: movementEmployeeId,
           sourceType: 'MANUAL',
+          movementKind: movementKind || (movementType === 'IN' ? 'PURCHASE' : 'ADJUSTMENT'),
+          notes: movementNotes.trim() || undefined,
         })
       )
       toast.success('Pergerakan stok tersimpan')
+      setMovementNotes('')
+      setMovementKind('')
     } catch (e) {
       const msg = e instanceof Error ? e.message : 'Gagal mencatat mutasi stok'
       setError(msg)
@@ -429,7 +437,7 @@ export function InventoryPage() {
         {/* Catat Mutasi Manual */}
         <Card
           title="Catat Mutasi Stok Manual"
-          description="Gunakan ini untuk penyesuaian opname, bonus supplier, atau barang rusak."
+          description="Gunakan ini untuk penyesuaian opname, barang basi/terbuang, atau bonus supplier."
         >
           <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
             <div className="sm:col-span-2">
@@ -457,11 +465,42 @@ export function InventoryPage() {
               <div className="mt-1">
                 <Select
                   value={movementType}
-                  onChange={(e) => setMovementType(e.target.value as StockMovementType)}
+                  onChange={(e) => {
+                    setMovementType(e.target.value as StockMovementType)
+                    setMovementKind('')
+                  }}
                 >
                   <option value="IN">Stok Masuk (+)</option>
                   <option value="OUT">Stok Keluar (-)</option>
                 </Select>
+              </div>
+            </div>
+
+            <div>
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                Jenis {movementType === 'OUT' ? 'Pengeluaran' : 'Pemasukan'}
+              </label>
+              <div className="mt-1">
+                {movementType === 'OUT' ? (
+                  <Select
+                    value={movementKind}
+                    onChange={(e) => setMovementKind(e.target.value as StockMovementKind | '')}
+                  >
+                    <option value="">— Pilih Jenis —</option>
+                    <option value="SALE">Terjual (Penjualan Normal)</option>
+                    <option value="WASTE">Barang Basi / Terbuang / Tidak Laku</option>
+                    <option value="ADJUSTMENT">Koreksi Opname / Penyesuaian</option>
+                  </Select>
+                ) : (
+                  <Select
+                    value={movementKind}
+                    onChange={(e) => setMovementKind(e.target.value as StockMovementKind | '')}
+                  >
+                    <option value="">— Pilih Jenis —</option>
+                    <option value="PURCHASE">Pembelian / Kulakan</option>
+                    <option value="ADJUSTMENT">Koreksi Opname / Penyesuaian</option>
+                  </Select>
+                )}
               </div>
             </div>
 
@@ -507,6 +546,26 @@ export function InventoryPage() {
                     </option>
                   ))}
                 </Select>
+              </div>
+            </div>
+
+            <div className="sm:col-span-2">
+              <label className="text-xs font-medium text-slate-700 dark:text-slate-300">
+                Keterangan / Catatan{' '}
+                {movementKind === 'WASTE' && (
+                  <span className="text-amber-600 dark:text-amber-400">(wajib untuk barang basi)</span>
+                )}
+              </label>
+              <div className="mt-1">
+                <Input
+                  value={movementNotes}
+                  onChange={(e) => setMovementNotes(e.target.value)}
+                  placeholder={
+                    movementKind === 'WASTE'
+                      ? 'Contoh: 2 pcs Garlic Bread tidak terjual, sudah basi sejak 5 Nov'
+                      : 'Opsional — keterangan tambahan'
+                  }
+                />
               </div>
             </div>
           </div>
@@ -694,13 +753,34 @@ export function InventoryPage() {
           <Table
             headers={
               canDeleteHistory
-                ? ['Tanggal', 'Produk', 'Arah', 'Qty', 'Penanggung Jawab', 'Sumber Log', 'Aksi']
-                : ['Tanggal', 'Produk', 'Arah', 'Qty', 'Penanggung Jawab', 'Sumber Log']
+                ? ['Tanggal', 'Produk', 'Arah', 'Jenis', 'Qty', 'Penanggung Jawab', 'Catatan', 'Aksi']
+                : ['Tanggal', 'Produk', 'Arah', 'Jenis', 'Qty', 'Penanggung Jawab', 'Catatan']
             }
           >
             {filteredMovements.map((m) => {
               const p = data.products.find((x) => x.id === m.productId)
               const emp = data.employees.find((x) => x.id === m.responsibleEmployeeId)
+
+              const kindLabel: Record<string, string> = {
+                SALE: 'Terjual',
+                WASTE: '⚠ Basi/Terbuang',
+                ADJUSTMENT: 'Koreksi',
+                PURCHASE: 'Kulakan',
+                PRODUCTION: 'Produksi',
+              }
+              const kindClass: Record<string, string> = {
+                SALE: 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300',
+                WASTE: 'bg-amber-50 text-amber-700 dark:bg-amber-950/40 dark:text-amber-300',
+                ADJUSTMENT: 'bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400',
+                PURCHASE: 'bg-blue-50 text-blue-700 dark:bg-blue-950/40 dark:text-blue-300',
+                PRODUCTION: 'bg-purple-50 text-purple-700 dark:bg-purple-950/40 dark:text-purple-300',
+              }
+
+              // Derive kind from sourceType if not set explicitly
+              const derivedKind = m.movementKind
+                ?? (m.sourceType === 'TRANSACTION' ? (m.type === 'OUT' ? 'SALE' : 'PURCHASE') : undefined)
+                ?? (m.sourceType === 'PRODUCTION' ? 'PRODUCTION' : undefined)
+
               return (
                 <tr key={m.id} className="hover:bg-slate-50/60 dark:hover:bg-slate-800/40">
                   <td className="px-4 py-3 font-mono text-xs text-slate-500">{formatDate(m.date)}</td>
@@ -719,16 +799,30 @@ export function InventoryPage() {
                       {m.type === 'IN' ? '+ Masuk' : '- Keluar'}
                     </span>
                   </td>
+                  <td className="px-4 py-3">
+                    {derivedKind ? (
+                      <span
+                        className={[
+                          'inline-flex items-center rounded px-1.5 py-0.5 text-[11px] font-semibold',
+                          kindClass[derivedKind] ?? 'bg-slate-100 text-slate-600',
+                        ].join(' ')}
+                      >
+                        {kindLabel[derivedKind] ?? derivedKind}
+                      </span>
+                    ) : (
+                      <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-500 dark:bg-slate-800">
+                        {m.sourceType ?? 'MANUAL'}
+                      </span>
+                    )}
+                  </td>
                   <td className="px-4 py-3 font-mono font-semibold text-slate-900 dark:text-slate-100">
                     {m.quantity}
                   </td>
                   <td className="px-4 py-3 text-slate-600 dark:text-slate-400">
                     {emp?.name ?? m.responsibleEmployeeId}
                   </td>
-                  <td className="px-4 py-3">
-                    <span className="rounded bg-slate-100 px-1.5 py-0.5 font-mono text-[11px] text-slate-600 dark:bg-slate-800 dark:text-slate-400">
-                      {m.sourceType ?? 'MANUAL'}
-                    </span>
+                  <td className="px-4 py-3 text-xs text-slate-500 dark:text-slate-400 max-w-[160px] truncate">
+                    {m.notes ?? '—'}
                   </td>
                   {canDeleteHistory && (
                     <td className="px-4 py-3">

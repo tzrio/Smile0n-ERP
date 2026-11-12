@@ -421,19 +421,27 @@ export function TransactionsPage() {
                       placeholder="Qty"
                     />
 
-                    <Input
-                      type="number"
-                      min={0}
-                      value={it.unitPrice}
-                      onChange={(e) =>
-                        setItems((prev) =>
-                          prev.map((x, i) =>
-                            i === idx ? { ...x, unitPrice: Number(e.target.value) } : x
+                    <div className="relative">
+                      <Input
+                        type="number"
+                        min={0}
+                        value={it.unitPrice}
+                        onChange={(e) =>
+                          setItems((prev) =>
+                            prev.map((x, i) =>
+                              i === idx ? { ...x, unitPrice: Number(e.target.value) } : x
+                            )
                           )
-                        )
-                      }
-                      placeholder="Harga / unit (IDR)"
-                    />
+                        }
+                        placeholder="Harga / unit (IDR)"
+                      />
+                      {/* Jika ada lebih dari 1 baris dan harga berbeda dengan baris lain, tampilkan badge */}
+                      {items.length > 1 && it.unitPrice > 0 && items.some((x, i) => i !== idx && x.productId === it.productId && x.unitPrice !== it.unitPrice) && (
+                        <span className="absolute -top-1.5 -right-1.5 rounded-full bg-amber-500 px-1 py-0.5 text-[9px] font-bold text-white">
+                          ≠
+                        </span>
+                      )}
+                    </div>
 
                     <Button
                       type="button"
@@ -471,6 +479,11 @@ export function TransactionsPage() {
                   </div>
                 </div>
               </div>
+              {type === 'SALE' && items.length > 0 && (
+                <p className="mt-2 text-xs text-slate-500 dark:text-slate-500">
+                  💡 Harga satuan bisa beda-beda per baris — gunakan baris terpisah untuk produk yang dijual dengan harga diskon.
+                </p>
+              )}
             </div>
           )}
         </div>

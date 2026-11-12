@@ -133,3 +133,32 @@ export function computeMonthlyAnalytics(
 
   return { months: monthKeys, sales, purchases, profit, stockNet }
 }
+
+export type WasteSummary = {
+  totalWasteQty: number
+  wasteByProduct: { productId: string; productName: string; qty: number }[]
+}
+
+/**
+ * Hitung total barang basi/terbuang dari mutasi manual dengan movementKind = 'WASTE'
+ */
+export function computeWasteSummary(data: AppData, options?: { productIds?: Set<string> }): WasteSummary {
+  const wasteMovements = data.stockMovements.filter(
+    (m) => m.movementKind === 'WASTE' && m.type === 'OUT' && (!options?.productIds || options.productIds.has(m.productId))
+  )
+
+  const qtyByProduct = new Map<string, number>()
+  for (const m of wasteMovements) {
+    qtyByProduct.set(m.productId, (qtyByProduct.get(m.productId) ?? 0) + m.quantity)
+  }
+
+  const wasteByProduct = Array.from(qtyByProduct.entries()).map(([productId, qty]) => ({
+    productId,
+    productName: data.products.find((p) => p.id === productId)?.name ?? productId,
+    qty,
+  }))
+
+  const totalWasteQty = wasteByProduct.reduce((s, w) => s + w.qty, 0)
+
+  return { totalWasteQty, wasteByProduct }
+}

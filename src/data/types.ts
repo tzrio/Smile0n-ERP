@@ -27,13 +27,23 @@ export type Product = {
 
 export type StockMovementType = 'IN' | 'OUT'
 
+/**
+ * Jenis keluar barang untuk mutasi OUT:
+ * - SALE: terjual normal (via transaksi)
+ * - WASTE: barang basi / kadaluarsa / tidak laku
+ * - ADJUSTMENT: penyesuaian stok opname / koreksi manual
+ */
+export type StockMovementKind = 'SALE' | 'WASTE' | 'ADJUSTMENT' | 'PURCHASE' | 'PRODUCTION'
+
 export type StockMovement = {
   id: string
   productId: string
   type: StockMovementType
+  movementKind?: StockMovementKind
   quantity: number
   date: string
   responsibleEmployeeId: string
+  notes?: string
   sourceType?: 'MANUAL' | 'TRANSACTION' | 'PRODUCTION'
   sourceId?: string
 }
