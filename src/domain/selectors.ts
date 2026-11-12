@@ -1,5 +1,5 @@
 import type { AppData, Product, StockMovement, Transaction } from '../data/types'
-import { toMonthKey } from '../utils/date'
+import { toMonthKey, toDateKey, toWeekKey, toYearKey } from '../utils/date'
 
 export type ProductStockRow = {
   product: Product
@@ -214,4 +214,116 @@ export function computeDailyFinance(
 
   // Return descending (newest first) for display
   return rows.slice().reverse()
+}
+
+export type ChartPeriod = 'daily' | 'weekly' | 'monthly' | 'yearly'
+
+export type PeriodAnalytics = {
+  keys: string[]
+  sales: MonthlyPoint[]
+  purchases: MonthlyPoint[]
+  profit: MonthlyPoint[]
+  stockNet: MonthlyPoint[]
+}
+
+/** How many periods to show back from now for each granularity */
+const PERIOD_COUNT: Record<ChartPeriod, number> = {
+  daily: 14,   // last 14 days
+  weekly: 8,   // last 8 weeks
+  monthly: 12, // last 12 months
+  yearly: 5,   // last 5 years
+}
+
+function getKeyFn(period: ChartPeriod): (iso: string) => string {
+  if (period === 'daily') return toDateKey
+  if (period === 'weekly') return toWeekKey
+  if (period === 'yearly') return toYearKey
+  return toMonthKey
+}
+
+/** Generate n period keys ending at current period, ascending */
+function lastNPeriodKeys(period: ChartPeriod, n: number): string[] {
+  const now = new Date()
+  const keys: string[] = []
+
+  if (period === 'daily') {
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i)
+      keys.push(toDateKey(d.toISOString()))
+    }
+  } else if (period === 'weekly') {
+    for (let i = n - 1; i >= 0; i--) {
+      const d = new Date(now)
+      d.setDate(d.getDate() - i * 7)
+      keys.push(toWeekKey(d.toISOString()))
+    }
+  } else if (period === 'monthly') {
+    const d = new Date(now)
+    d.setDate(1)
+    for (let i = n - 1; i >= 0; i--) {
+      const tmp = new Date(d)
+      tmp.setMonth(d.getMonth() - i)
+      keys.push(toMonthKey(tmp.toISOString()))
+    }
+  } else {
+    // yearly
+    const thisYear = now.getFullYear()
+    for (let i = n - 1; i >= 0; i--) {
+      keys.push(String(thisYear - i))
+    }
+  }
+
+  // Deduplicate while preserving order (weekly can produce duplicate keys near period boundaries)
+  return Array.from(new Set(keys))
+}
+
+/**
+ * Compute financial and stock analytics for any time granularity.
+ * Default period count is taken from PERIOD_COUNT; can be overridden.
+ */
+export function computePeriodAnalytics(
+  data: AppData,
+  period: ChartPeriod,
+  options?: { productIds?: Set<string>; count?: number }
+): PeriodAnalytics {
+  const count = options?.count ?? PERIOD_COUNT[period]
+  const keys = lastNPeriodKeys(period, count)
+  const keySet = new Set(keys)
+  const keyFn = getKeyFn(period)
+
+  const relevantTransactions = options?.productIds
+    ? data.transactions.filter((t) => {
+        if (!t.items || t.items.length === 0) return true
+        return t.items.some((it) => options.productIds!.has(it.productId))
+      })
+    : data.transactions
+
+  // Sum transactions by period key
+  const salesMap = new Map<string, number>(keys.map((k) => [k, 0]))
+  const purchasesMap = new Map<string, number>(keys.map((k) => [k, 0]))
+
+  for (const t of relevantTransactions) {
+    const k = keyFn(t.date)
+    if (!keySet.has(k)) continue
+    if (t.type === 'SALE') salesMap.set(k, (salesMap.get(k) ?? 0) + t.amount)
+    else purchasesMap.set(k, (purchasesMap.get(k) ?? 0) + t.amount)
+  }
+
+  // Sum stock movements by period key
+  const stockMap = new Map<string, number>(keys.map((k) => [k, 0]))
+  for (const m of data.stockMovements) {
+    if (options?.productIds && !options.productIds.has(m.productId)) continue
+    const k = keyFn(m.date)
+    if (!keySet.has(k)) continue
+    const delta = m.type === 'IN' ? m.quantity : -m.quantity
+    stockMap.set(k, (stockMap.get(k) ?? 0) + delta)
+  }
+
+  const sales = keys.map((k) => ({ month: k, value: salesMap.get(k) ?? 0 }))
+  const purchases = keys.map((k) => ({ month: k, value: purchasesMap.get(k) ?? 0 }))
+  const profit = keys.map((k) => ({ month: k, value: (salesMap.get(k) ?? 0) - (purchasesMap.get(k) ?? 0) }))
+  const stockNet = keys.map((k) => ({ month: k, value: stockMap.get(k) ?? 0 }))
+
+  return { keys, sales, purchases, profit, stockNet }
 }

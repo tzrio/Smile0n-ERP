@@ -13,16 +13,19 @@ import { Input } from '../components/Input'
 import { Select } from '../components/Select'
 import { Table } from '../components/Table'
 import { EmptyState } from '../components/EmptyState'
+import { PeriodSelector } from '../components/PeriodSelector'
 import { useAppData } from '../data/useAppData'
 import { useDivision } from '../app/DivisionContext'
 import {
   computeFinanceSummary,
-  computeMonthlyAnalytics,
+  computePeriodAnalytics,
   computeDailyFinance,
 } from '../domain/selectors'
+import type { ChartPeriod } from '../domain/selectors'
 import { isoNow } from '../utils/date'
 import { formatIDR } from '../utils/money'
 import { downloadCsv } from '../utils/csv'
+import { formatPeriodLabel } from '../utils/date'
 import { MonthlyLineChart } from '../components/charts/MonthlyLineChart'
 import { useSortableTable } from '../hooks/useSortableTable'
 
@@ -41,7 +44,11 @@ export function FinancePage() {
   )
 
   const finance = useMemo(() => computeFinanceSummary(data, { productIds }), [data, productIds])
-  const analytics = useMemo(() => computeMonthlyAnalytics(data, 12, { productIds }), [data, productIds])
+  const [chartPeriod, setChartPeriod] = useState<ChartPeriod>('weekly')
+  const periodAnalytics = useMemo(
+    () => computePeriodAnalytics(data, chartPeriod, { productIds }),
+    [data, chartPeriod, productIds]
+  )
   const dailyRows = useMemo(() => computeDailyFinance(data, { productIds }), [data, productIds])
 
   // Daily table filters
@@ -79,7 +86,6 @@ export function FinancePage() {
   function exportFinanceCsv() {
     const filename = `laporan-keuangan-${division.toLowerCase()}-${new Date(isoNow()).toISOString().slice(0, 10)}`
 
-    // Summary rows (monthly)
     const rows = [
       {
         period: 'TOTAL KONSOLIDASI',
@@ -88,19 +94,17 @@ export function FinancePage() {
         profit: finance.profit,
         cashOpeningBalance: data.settings.cashOpeningBalance,
         cashBalance: finance.cashBalance,
-        notes: '',
       },
-      ...analytics.months.map((m) => {
-        const sales = analytics.sales.find((p) => p.month === m)?.value ?? 0
-        const purchases = analytics.purchases.find((p) => p.month === m)?.value ?? 0
+      ...periodAnalytics.keys.map((k) => {
+        const sales = periodAnalytics.sales.find((p) => p.month === k)?.value ?? 0
+        const purchases = periodAnalytics.purchases.find((p) => p.month === k)?.value ?? 0
         return {
-          period: m,
+          period: k,
           sales,
           purchases,
           profit: sales - purchases,
           cashOpeningBalance: '',
           cashBalance: '',
-          notes: '',
         }
       }),
     ]
@@ -211,13 +215,14 @@ export function FinancePage() {
       {/* Monthly chart */}
       <Card
         title="Grafik Tren Penjualan vs Pembelian"
-        description="Analisis performa keuangan 12 bulan terakhir untuk memantau margin keuntungan."
+        description="Analisis performa keuangan untuk memantau margin keuntungan."
+        right={<PeriodSelector value={chartPeriod} onChange={setChartPeriod} />}
       >
         <MonthlyLineChart
-          months={analytics.months}
+          months={periodAnalytics.keys.map((k) => formatPeriodLabel(k, chartPeriod))}
           series={[
-            { label: 'Penjualan (IDR)', data: analytics.sales.map((p) => p.value) },
-            { label: 'Pembelian / Kulakan (IDR)', data: analytics.purchases.map((p) => p.value) },
+            { label: 'Penjualan (IDR)', data: periodAnalytics.sales.map((p) => p.value) },
+            { label: 'Pembelian / Kulakan (IDR)', data: periodAnalytics.purchases.map((p) => p.value) },
           ]}
         />
       </Card>

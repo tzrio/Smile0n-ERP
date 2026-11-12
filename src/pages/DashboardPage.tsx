@@ -1,17 +1,23 @@
-import { useMemo } from 'react'
+import { useMemo, useState } from 'react'
 import { Card } from '../components/Card'
 import { PageHeader } from '../components/PageHeader'
 import { StatCard } from '../components/StatCard'
 import { MonthlyBarChart } from '../components/charts/MonthlyBarChart'
 import { MonthlyLineChart } from '../components/charts/MonthlyLineChart'
+import { PeriodSelector } from '../components/PeriodSelector'
 import { useAppData } from '../data/useAppData'
 import { useDivision } from '../app/DivisionContext'
-import { computeFinanceSummary, computeMonthlyAnalytics, computeProductStock } from '../domain/selectors'
+import { computeFinanceSummary, computePeriodAnalytics, computeProductStock } from '../domain/selectors'
+import type { ChartPeriod } from '../domain/selectors'
 import { formatIDR } from '../utils/money'
+import { formatPeriodLabel } from '../utils/date'
 
 export function DashboardPage() {
   const data = useAppData()
   const { division } = useDivision()
+
+  const [financePeriod, setFinancePeriod] = useState<ChartPeriod>('weekly')
+  const [stockPeriod, setStockPeriod] = useState<ChartPeriod>('weekly')
 
   const filteredProducts = useMemo(() => {
     if (division === 'ALL') return data.products
@@ -33,9 +39,14 @@ export function DashboardPage() {
     [data, division, filteredProductIds]
   )
 
-  const analytics = useMemo(
-    () => computeMonthlyAnalytics(data, 12, { productIds: finishedProductIds }),
-    [data, finishedProductIds]
+  const financeAnalytics = useMemo(
+    () => computePeriodAnalytics(data, financePeriod, { productIds: finishedProductIds }),
+    [data, financePeriod, finishedProductIds]
+  )
+
+  const stockAnalytics = useMemo(
+    () => computePeriodAnalytics(data, stockPeriod, { productIds: finishedProductIds }),
+    [data, stockPeriod, finishedProductIds]
   )
 
   const stock = useMemo(
@@ -134,29 +145,35 @@ export function DashboardPage() {
         />
       </div>
 
-      {/* Charts Overview */}
+      {/* Charts */}
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-2">
         <Card
-          title="Tren Finansial Bulanan"
+          title="Tren Finansial"
           description="Pergerakan omzet penjualan versus laba operasional bersih"
+          right={
+            <PeriodSelector value={financePeriod} onChange={setFinancePeriod} />
+          }
         >
           <MonthlyLineChart
-            months={analytics.months}
+            months={financeAnalytics.keys.map((k) => formatPeriodLabel(k, financePeriod))}
             series={[
-              { label: 'Penjualan (IDR)', data: analytics.sales.map((p) => p.value) },
-              { label: 'Laba Bersih (IDR)', data: analytics.profit.map((p) => p.value) },
+              { label: 'Penjualan (IDR)', data: financeAnalytics.sales.map((p) => p.value) },
+              { label: 'Laba Bersih (IDR)', data: financeAnalytics.profit.map((p) => p.value) },
             ]}
           />
         </Card>
 
         <Card
           title="Mutasi Stok Barang Jadi"
-          description="Net pergerakan inventaris per bulan (Barang Masuk - Barang Keluar)"
+          description="Net pergerakan inventaris (Barang Masuk - Barang Keluar)"
+          right={
+            <PeriodSelector value={stockPeriod} onChange={setStockPeriod} />
+          }
         >
           <MonthlyBarChart
-            months={analytics.months}
+            months={stockAnalytics.keys.map((k) => formatPeriodLabel(k, stockPeriod))}
             label="Net Unit"
-            data={analytics.stockNet.map((p) => p.value)}
+            data={stockAnalytics.stockNet.map((p) => p.value)}
           />
         </Card>
       </div>
